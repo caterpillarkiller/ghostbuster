@@ -14,7 +14,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Custom CSS for better styling
+# Custom CSS for better styling with dark mode support
 st.markdown("""
     <style>
     .main-header {
@@ -22,11 +22,12 @@ st.markdown("""
         font-weight: bold;
         text-align: center;
         margin-bottom: 1rem;
+        color: #ffffff;
     }
     .subtitle {
         text-align: center;
         font-size: 1.2rem;
-        color: #666;
+        color: #b0b0b0;
         margin-bottom: 2rem;
     }
     .score-container {
@@ -36,16 +37,19 @@ st.markdown("""
         margin: 2rem 0;
     }
     .score-high {
-        background-color: #d4edda;
-        border: 2px solid #28a745;
+        background-color: #1a4d2e;
+        border: 3px solid #4ade80;
+        color: #ffffff;
     }
     .score-medium {
-        background-color: #fff3cd;
-        border: 2px solid #ffc107;
+        background-color: #4d3800;
+        border: 3px solid #fbbf24;
+        color: #ffffff;
     }
     .score-low {
-        background-color: #f8d7da;
-        border: 2px solid #dc3545;
+        background-color: #4d1a1a;
+        border: 3px solid #ef4444;
+        color: #ffffff;
     }
     .score-number {
         font-size: 4rem;
@@ -56,19 +60,46 @@ st.markdown("""
         font-size: 1.5rem;
         font-weight: bold;
         margin-top: 1rem;
+        color: #ffffff;
     }
     .red-flag {
-        background-color: #fff3cd;
+        background-color: #4d3800;
         padding: 0.5rem 1rem;
-        border-left: 4px solid #ffc107;
+        border-left: 4px solid #fbbf24;
         margin: 0.5rem 0;
+        color: #ffffff;
     }
     .info-box {
-        background-color: #e7f3ff;
+        background-color: #1a3a52;
         padding: 1rem;
         border-radius: 5px;
-        border-left: 4px solid #2196F3;
+        border-left: 4px solid #3b82f6;
         margin: 1rem 0;
+        color: #ffffff;
+    }
+    .good-box {
+        background-color: #1a4d2e;
+        padding: 1rem;
+        border-radius: 5px;
+        border-left: 4px solid #4ade80;
+        margin: 1rem 0;
+        color: #ffffff;
+    }
+    .warning-box {
+        background-color: #4d3800;
+        padding: 1rem;
+        border-radius: 5px;
+        border-left: 4px solid #fbbf24;
+        margin: 1rem 0;
+        color: #ffffff;
+    }
+    .danger-box {
+        background-color: #4d1a1a;
+        padding: 1rem;
+        border-radius: 5px;
+        border-left: 4px solid #ef4444;
+        margin: 1rem 0;
+        color: #ffffff;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -265,20 +296,26 @@ if st.session_state.analysis_complete and st.session_state.report:
     # Interpretation
     st.markdown("### 💡 What This Score Means")
     if score >= config.CONFIDENCE_THRESHOLD_HIGH:
-        st.success("""
-        **This job posting appears legitimate!** The company seems real, the job description is detailed, 
+        st.markdown("""
+        <div class="good-box">
+        <strong>This job posting appears legitimate!</strong> The company seems real, the job description is detailed, 
         and we found positive signals about their hiring activity. It's likely worth applying.
-        """)
+        </div>
+        """, unsafe_allow_html=True)
     elif score >= config.CONFIDENCE_THRESHOLD_LOW:
-        st.warning("""
-        **This job posting has some concerning signs.** While it might be legitimate, there are red flags 
+        st.markdown("""
+        <div class="warning-box">
+        <strong>This job posting has some concerning signs.</strong> While it might be legitimate, there are red flags 
         that suggest caution. Do additional research on the company before applying.
-        """)
+        </div>
+        """, unsafe_allow_html=True)
     else:
-        st.error("""
-        **This job posting shows multiple signs of being fake or a ghost job.** Consider looking for 
+        st.markdown("""
+        <div class="danger-box">
+        <strong>This job posting shows multiple signs of being fake or a ghost job.</strong> Consider looking for 
         other opportunities instead of spending time on this application.
-        """)
+        </div>
+        """, unsafe_allow_html=True)
     
     # Detailed Analysis
     st.markdown("---")
@@ -300,14 +337,14 @@ if st.session_state.analysis_complete and st.session_state.report:
                     flag_name = flag.replace('_', ' ').title()
                     st.markdown(f'<div class="red-flag">🚩 {flag_name}</div>', unsafe_allow_html=True)
         else:
-            st.success("✅ No major red flags detected in the job description!")
+            st.markdown('<div class="good-box">✅ No major red flags detected in the job description!</div>', unsafe_allow_html=True)
     
     # Company Research
     with st.expander("🔬 **Company Research Summary**", expanded=False):
         if company_research:
             st.markdown(company_research['research'])
         else:
-            st.warning("Could not complete company research.")
+            st.markdown('<div class="warning-box">⚠️ Could not complete company research.</div>', unsafe_allow_html=True)
     
     # Job Description Preview
     with st.expander("📄 **Job Description Preview**", expanded=False):
