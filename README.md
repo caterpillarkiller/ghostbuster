@@ -25,57 +25,6 @@ Ghostbuster analyzes job postings by:
 4. **Analyzing company fit** - Checks if the role makes sense for the company's stage and size
 5. **Generating a confidence score** - Gives you a 0-100 score with detailed reasoning
 
-## Installation
-
-### Prerequisites
-- Python 3.8+ (you have 3.9.6 ✅)
-- Perplexity API key (get one at https://www.perplexity.ai/settings/api)
-
-### Setup Steps
-
-1. **Clone this repository**
-   ```bash
-   git clone https://github.com/yourusername/ghostbuster.git
-   cd ghostbuster
-   ```
-
-2. **Create and activate virtual environment**
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate  # On Mac/Linux
-   ```
-
-3. **Install dependencies**
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Add your Perplexity API key**
-   - Open the `.env` file
-   - Replace `your_api_key_here` with your actual API key:
-     ```
-     PERPLEXITY_API_KEY=pplx-your-actual-key-here
-     ```
-
-## Usage
-
-### Basic Usage
-
-Run Ghostbuster with a job posting URL:
-
-```bash
-python ghostbuster.py
-```
-
-Then paste the URL when prompted.
-
-### Command Line Usage
-
-You can also pass the URL directly:
-
-```bash
-python ghostbuster.py "https://www.example.com/jobs/12345"
-```
 
 ### Example Output
 
@@ -146,10 +95,6 @@ CONFIDENCE_THRESHOLD_LOW=40
 ## Contributing
 
 This is a learning project! Contributions are welcome. Please open an issue or submit a PR.
-
-## License
-
-MIT License - feel free to use and modify!
 
 ## Disclaimer
 
