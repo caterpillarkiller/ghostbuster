@@ -231,7 +231,7 @@ class Ghostbuster:
             research_block = "No company research available."
 
         response = self.claude.messages.parse(
-            model="claude-opus-4-6",
+            model="claude-sonnet-4-6",
             max_tokens=2048,
             thinking={"type": "adaptive"},
             system="""You are an expert at identifying "ghost jobs" — job postings that companies post with no real intention of filling.
