@@ -3,8 +3,9 @@ Ghostbuster Web Interface
 A Streamlit app for detecting fake job postings
 """
 import streamlit as st
-from ghostbuster import Ghostbuster
+from ghostbuster import Ghostbuster, _validate_url
 import config
+from urllib.parse import urlparse
 
 # Page configuration
 st.set_page_config(
@@ -195,7 +196,11 @@ if analyze_button:
             # Initialize Ghostbuster
             status_text.text("🚀 Initializing Ghostbuster...")
             progress_bar.progress(10)
-            gb = Ghostbuster()
+            try:
+                gb = Ghostbuster()
+            except ValueError as cfg_err:
+                st.error(f"❌ Configuration error: {cfg_err}")
+                st.stop()
             
             # Step 1: Scrape job posting
             status_text.text("🔍 Scraping job posting...")
@@ -241,8 +246,15 @@ if analyze_button:
             progress_bar.empty()
             status_text.empty()
             
+        except ValueError as e:
+            # ValueError is raised for user-facing problems (bad URL, config issues)
+            st.error(f"❌ {e}")
+            st.stop()
         except Exception as e:
-            st.error(f"❌ Error during analysis: {str(e)}")
+            # Log the full error server-side but show only a generic message to the user
+            import logging
+            logging.exception("Unexpected error during analysis")
+            st.error("❌ An unexpected error occurred during analysis. Please try again.")
             st.stop()
 
 # Display results if analysis is complete
@@ -260,11 +272,18 @@ if st.session_state.analysis_complete and st.session_state.report:
     # Job Information
     col1, col2 = st.columns([2, 1])
     with col1:
-        st.markdown(f"### 📋 {job_data['title']}")
-        st.markdown(f"**🏢 Company:** {job_data['company']}")
+        # Use st.write/text for scraped content to avoid markdown injection
+        st.markdown("### 📋 Job Details")
+        st.write(f"**Title:** {job_data['title']}")
+        st.write(f"**🏢 Company:** {job_data['company']}")
     with col2:
-        st.markdown(f"**🔗 URL:**")
-        st.markdown(f"[View Original Posting]({job_data['url']})")
+        st.markdown("**🔗 URL:**")
+        # Validate URL scheme before rendering as a hyperlink
+        parsed_url = urlparse(job_data['url'])
+        if parsed_url.scheme in ('http', 'https'):
+            st.markdown(f"[View Original Posting]({job_data['url']})")
+        else:
+            st.text(job_data['url'])
     
     st.markdown("---")
     
@@ -348,7 +367,10 @@ if st.session_state.analysis_complete and st.session_state.report:
     
     # Job Description Preview
     with st.expander("📄 **Job Description Preview**", expanded=False):
-        st.text(job_data['full_text'][:1000] + "...")
+        preview = job_data['full_text'][:1000]
+        if len(job_data['full_text']) > 1000:
+            preview += "..."
+        st.text(preview)
     
     st.markdown("---")
     

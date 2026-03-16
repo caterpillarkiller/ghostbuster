@@ -8,14 +8,57 @@ from openai import OpenAI
 import config
 from datetime import datetime
 import re
+from urllib.parse import urlparse
+
+# Permitted URL schemes and a blocklist of private/internal address prefixes
+_ALLOWED_SCHEMES = {'http', 'https'}
+_BLOCKED_HOSTS = {
+    'localhost', '127.0.0.1', '0.0.0.0', '::1',
+    '169.254.169.254',  # AWS/GCP/Azure instance metadata
+    '100.100.100.200',  # Alibaba Cloud metadata
+}
+
+
+def _validate_url(url: str) -> str:
+    """
+    Validate that a URL is safe to fetch.
+    Returns the (unchanged) URL on success, raises ValueError on failure.
+    """
+    try:
+        parsed = urlparse(url)
+    except Exception:
+        raise ValueError("Invalid URL")
+
+    if parsed.scheme not in _ALLOWED_SCHEMES:
+        raise ValueError(f"URL scheme '{parsed.scheme}' is not allowed. Only http/https are permitted.")
+
+    host = parsed.hostname or ""
+    if host in _BLOCKED_HOSTS:
+        raise ValueError(f"Requests to '{host}' are not permitted.")
+
+    # Block private IPv4 ranges (10.x, 172.16-31.x, 192.168.x)
+    import socket
+    try:
+        ip = socket.gethostbyname(host)
+        parts = ip.split('.')
+        if len(parts) == 4:
+            a, b = int(parts[0]), int(parts[1])
+            if (a == 10
+                    or (a == 172 and 16 <= b <= 31)
+                    or (a == 192 and b == 168)
+                    or ip == '127.0.0.1'):
+                raise ValueError(f"Requests to private/internal addresses are not permitted.")
+    except socket.gaierror:
+        pass  # Can't resolve — let requests handle it
+
+    return url
 
 
 class Ghostbuster:
     def __init__(self):
         """Initialize Ghostbuster with Perplexity API client"""
         if not config.PERPLEXITY_API_KEY or config.PERPLEXITY_API_KEY == 'your_api_key_here':
-            print("⚠️  ERROR: Please add your Perplexity API key to the .env file")
-            sys.exit(1)
+            raise ValueError("Perplexity API key is not configured. Add PERPLEXITY_API_KEY to your .env file.")
         
         # Initialize Perplexity client
         self.client = OpenAI(
@@ -29,24 +72,35 @@ class Ghostbuster:
         Returns: dict with job details
         """
         print(f"🔍 Scraping job posting from: {url}")
-        
+
         try:
+            # Validate URL before making any network request (SSRF prevention)
+            _validate_url(url)
+
             headers = {'User-Agent': config.USER_AGENT}
             response = requests.get(url, headers=headers, timeout=10)
             response.raise_for_status()
-            
+
             soup = BeautifulSoup(response.text, 'lxml')
-            
+
             # Extract text content (this is a simple version - we'll improve it)
             text_content = soup.get_text(separator=' ', strip=True)
-            
+
             # Try to find job title
             title = soup.find('h1')
             job_title = title.get_text(strip=True) if title else "Unknown Title"
-            
-            # Try to find company name
+
+            # Try to find company name — fall back to page title then domain
             company_elem = soup.find('meta', property='og:site_name')
-            company_name = company_elem['content'] if company_elem else "Unknown Company"
+            if company_elem and company_elem.get('content'):
+                company_name = company_elem['content']
+            else:
+                page_title = soup.find('title')
+                if page_title:
+                    company_name = page_title.get_text(strip=True)
+                else:
+                    parsed = urlparse(url)
+                    company_name = parsed.hostname or "Unknown Company"
             
             job_data = {
                 'url': url,
@@ -82,13 +136,14 @@ class Ghostbuster:
 
 Please be concise and factual."""
             
-            # Call Perplexity API
+            # Call Perplexity API (30-second timeout to prevent hung threads)
             response = self.client.chat.completions.create(
                 model="llama-3.1-sonar-small-128k-online",
                 messages=[
                     {"role": "system", "content": "You are a helpful research assistant that provides factual, concise company information."},
                     {"role": "user", "content": query}
-                ]
+                ],
+                timeout=30
             )
             
             research_results = response.choices[0].message.content
@@ -166,19 +221,27 @@ Please be concise and factual."""
         # Use Perplexity research to adjust score
         if company_research:
             research_text = company_research['research'].lower()
-            
-            # Positive signals
-            if any(word in research_text for word in ['hiring', 'expanding', 'growth', 'funding']):
+
+            def _has_word(text, word):
+                """Whole-word match to avoid false positives (e.g. 'not hiring')."""
+                return bool(re.search(r'\b' + re.escape(word) + r'\b', text))
+
+            # Positive signals — require the word NOT to be immediately preceded by 'not'
+            pos_words = ['expanding', 'growth', 'funding']
+            if any(_has_word(research_text, w) for w in pos_words) or (
+                    _has_word(research_text, 'hiring') and not re.search(r'\bnot\s+hiring\b', research_text)):
                 score += 10
                 reasons.append("+ Company shows growth signals: +10 points")
-            
+
             # Negative signals
-            if any(word in research_text for word in ['layoffs', 'downsizing', 'closing']):
+            neg_words = ['layoffs', 'downsizing', 'closing', 'bankrupt']
+            if any(_has_word(research_text, w) for w in neg_words):
                 score -= 20
                 reasons.append("- Company has negative signals (layoffs/downsizing): -20 points")
-            
+
             # Can't find much info about company
-            if 'no information' in research_text or 'unable to find' in research_text or len(research_text) < 100:
+            no_info_phrases = ['no information', 'unable to find', 'could not find', 'no record']
+            if any(p in research_text for p in no_info_phrases) or len(research_text) < 100:
                 score -= 25
                 reasons.append("- Limited information about company: -25 points")
         
@@ -278,7 +341,11 @@ def main():
         return
     
     # Create Ghostbuster instance and analyze
-    gb = Ghostbuster()
+    try:
+        gb = Ghostbuster()
+    except ValueError as e:
+        print(f"❌ Configuration error: {e}")
+        return
     report = gb.analyze(job_url)
     
     if report:
