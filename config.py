@@ -9,6 +9,7 @@ load_dotenv()
 
 # API Configuration
 PERPLEXITY_API_KEY = os.getenv('PERPLEXITY_API_KEY')
+ANTHROPIC_API_KEY = os.getenv('ANTHROPIC_API_KEY')
 
 # Confidence Score Thresholds
 CONFIDENCE_THRESHOLD_HIGH = int(os.getenv('CONFIDENCE_THRESHOLD_HIGH', 75))

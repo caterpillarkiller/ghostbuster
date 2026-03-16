@@ -211,32 +211,27 @@ if analyze_button:
                 st.error("❌ Could not scrape the job posting. The URL might be invalid or the site might be blocking scrapers.")
                 st.stop()
             
-            # Step 2: Research company
-            status_text.text("🔬 Researching company with Perplexity AI...")
-            progress_bar.progress(50)
+            # Step 2: Research company hiring signals with Perplexity (3 targeted searches)
+            status_text.text("🔬 Researching hiring signals with Perplexity AI (3 searches)...")
+            progress_bar.progress(40)
             company_research = gb.research_company(job_data['company'], job_data['title'])
-            
-            # Step 3: Analyze job description
-            status_text.text("📝 Analyzing job description for red flags...")
-            progress_bar.progress(75)
-            red_flags = gb.analyze_job_description(job_data['full_text'])
-            
-            # Step 4: Calculate score
-            status_text.text("📊 Calculating confidence score...")
-            progress_bar.progress(90)
-            score, reasons = gb.calculate_confidence_score(job_data, company_research, red_flags)
-            
-            # Step 5: Generate report
+
+            # Step 3: Claude analyzes job description + all research
+            status_text.text("🤖 Analyzing with Claude AI...")
+            progress_bar.progress(80)
+            analysis = gb.analyze_with_claude(job_data, company_research)
+
+            # Step 4: Build report
             status_text.text("✅ Generating report...")
             progress_bar.progress(100)
-            
-            # Create report
+
             report = {
-                'score': score,
+                'score': analysis.score,
                 'job_data': job_data,
                 'company_research': company_research,
-                'red_flags': red_flags,
-                'reasons': reasons
+                'hiring_triggers': analysis.hiring_triggers,
+                'concerns': analysis.concerns,
+                'reasoning': analysis.reasoning,
             }
             
             st.session_state.report = report
@@ -263,8 +258,9 @@ if st.session_state.analysis_complete and st.session_state.report:
     score = report['score']
     job_data = report['job_data']
     company_research = report['company_research']
-    red_flags = report['red_flags']
-    reasons = report['reasons']
+    hiring_triggers = report.get('hiring_triggers', [])
+    concerns = report.get('concerns', [])
+    reasoning = report.get('reasoning', '')
     
     st.markdown("---")
     st.markdown("## 📊 Analysis Results")
@@ -339,29 +335,41 @@ if st.session_state.analysis_complete and st.session_state.report:
     # Detailed Analysis
     st.markdown("---")
     st.markdown("### 📝 Detailed Analysis")
-    
-    # Reasons/Scoring breakdown
-    with st.expander("🔢 **Score Breakdown**", expanded=True):
-        if reasons:
-            for reason in reasons:
-                st.markdown(f"- {reason}")
+
+    # Claude's verdict reasoning
+    with st.expander("🤖 **Claude's Reasoning**", expanded=True):
+        if reasoning:
+            st.markdown(f'<div class="info-box">{reasoning}</div>', unsafe_allow_html=True)
         else:
-            st.markdown("No specific adjustments to base score.")
-    
-    # Red Flags
-    with st.expander("⚠️ **Red Flags Detected**", expanded=True):
-        if red_flags:
-            for flag, value in red_flags.items():
-                if value:
-                    flag_name = flag.replace('_', ' ').title()
-                    st.markdown(f'<div class="red-flag">🚩 {flag_name}</div>', unsafe_allow_html=True)
+            st.markdown("No reasoning provided.")
+
+    # Positive signals
+    with st.expander("✅ **Positive Hiring Signals**", expanded=True):
+        if hiring_triggers:
+            for trigger in hiring_triggers:
+                st.markdown(f'<div class="good-box">✅ {trigger}</div>', unsafe_allow_html=True)
         else:
-            st.markdown('<div class="good-box">✅ No major red flags detected in the job description!</div>', unsafe_allow_html=True)
-    
-    # Company Research
-    with st.expander("🔬 **Company Research Summary**", expanded=False):
+            st.markdown('<div class="warning-box">⚠️ No positive hiring signals found.</div>', unsafe_allow_html=True)
+
+    # Concerns / red flags
+    with st.expander("⚠️ **Concerns & Red Flags**", expanded=True):
+        if concerns:
+            for concern in concerns:
+                st.markdown(f'<div class="red-flag">🚩 {concern}</div>', unsafe_allow_html=True)
+        else:
+            st.markdown('<div class="good-box">✅ No significant concerns detected.</div>', unsafe_allow_html=True)
+
+    # Perplexity research detail
+    with st.expander("🔬 **Perplexity Research Detail**", expanded=False):
         if company_research:
-            st.markdown(company_research['research'])
+            st.markdown("**Hiring Trigger Events (funding, contracts, expansion)**")
+            st.markdown(company_research.get('hiring_triggers', 'No data.'))
+            st.markdown("---")
+            st.markdown("**Growth & Hiring Activity (Glassdoor, LinkedIn, headcount)**")
+            st.markdown(company_research.get('growth_signals', 'No data.'))
+            st.markdown("---")
+            st.markdown("**Negative Signals (layoffs, downsizing, difficulties)**")
+            st.markdown(company_research.get('negative_signals', 'No data.'))
         else:
             st.markdown('<div class="warning-box">⚠️ Could not complete company research.</div>', unsafe_allow_html=True)
     
